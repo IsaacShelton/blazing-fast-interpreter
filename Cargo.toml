@@ -7,5 +7,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+clap = { version = "4.4.6", features = ["cargo"] }
+profiling = "1.0.11"
 slice-deque = "0.3.0"
+tracy-client = { version = "0.16.3", optional = true }
 
+[features]
+profile = ["profiling/profile-with-tracy", "dep:tracy-client"]

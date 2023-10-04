@@ -39,7 +39,7 @@ impl BasicOpAcc {
                 self.building = Some(Output(current + new));
             }
             (Some(_), _) => {
-                return std::mem::replace(&mut self.building, Some(op));
+                return std::mem::replace(&mut self.building, Some(op)).and_then(Self::filter);
             }
         }
 
@@ -67,7 +67,15 @@ impl BasicOpAcc {
         Ok(self.feed(op))
     }
 
+    pub fn filter(op: BasicOp) -> Option<BasicOp> {
+        match op {
+            BasicOp::Shift(0) => None,
+            BasicOp::ChangeBy(0) => None,
+            _ => Some(op),
+        }
+    }
+
     pub fn finalize(&mut self) -> Option<BasicOp> {
-        std::mem::replace(&mut self.building, None)
+        std::mem::replace(&mut self.building, None).and_then(Self::filter)
     }
 }

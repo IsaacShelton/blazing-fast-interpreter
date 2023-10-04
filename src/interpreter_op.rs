@@ -1,7 +1,7 @@
 use crate::{basic_op::BasicOp, compound_op::CompoundOp};
 use anyhow::{anyhow, Result};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum InterpreterOp {
     CompoundOp(CompoundOp),
     LoopStart(usize),

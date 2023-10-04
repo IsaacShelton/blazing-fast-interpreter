@@ -14,16 +14,16 @@ impl<'ops> Interpreter<'ops> {
         Self { ops }
     }
 
+    #[profiling::function]
     pub unsafe fn interpret(&self) {
         let mut cells = vec![0u8; CELL_COUNT];
         let mut instr_i: usize = 0;
         let mut cell_i: usize = 0;
 
         while instr_i < self.ops.len() {
-            // println!("{:?}", self.ops[instr_i]);
-
-            match self.ops[instr_i] {
+            match &self.ops[instr_i] {
                 InterpreterOp::LoopStart(distance) => {
+                    profiling::scope!("LoopStart");
                     if *cells.get_unchecked(cell_i) == 0 {
                         instr_i += distance;
                     } else {
@@ -31,6 +31,7 @@ impl<'ops> Interpreter<'ops> {
                     }
                 }
                 InterpreterOp::LoopEnd(distance) => {
+                    profiling::scope!("LoopEnd");
                     if *cells.get_unchecked(cell_i) != 0 {
                         instr_i -= distance;
                     } else {
@@ -38,22 +39,26 @@ impl<'ops> Interpreter<'ops> {
                     }
                 }
                 InterpreterOp::CompoundOp(CompoundOp::BasicOp(BasicOp::ChangeBy(amount))) => {
-                    *cells.get_unchecked_mut(cell_i) = cells.get_unchecked(cell_i).wrapping_add(amount);
+                    profiling::scope!("ChangeBy");
+                    *cells.get_unchecked_mut(cell_i) = cells.get_unchecked(cell_i).wrapping_add(*amount);
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::BasicOp(BasicOp::Shift(amount))) => {
+                    profiling::scope!("Shift");
                     cell_i = (cell_i as i64 + amount) as usize;
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::BasicOp(BasicOp::Input(count))) => {
-                    for _ in 0..count {
+                    profiling::scope!("Input");
+                    for _ in 0..*count {
                         cells[cell_i] = Self::input();
                     }
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::BasicOp(BasicOp::Output(count))) => {
-                    for _ in 0..count {
-                        Self::output(cells[cell_i]);
+                    profiling::scope!("Output");
+                    for _ in 0..*count {
+                        Self::output(&[cells[cell_i]]);
                     }
                     instr_i += 1;
                 }
@@ -62,29 +67,105 @@ impl<'ops> Interpreter<'ops> {
                     return;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::Zero) => {
+                    profiling::scope!("Zero");
                     *cells.get_unchecked_mut(cell_i) = 0;
                     instr_i += 1;
                 }
-                InterpreterOp::CompoundOp(CompoundOp::WellBehavedDivMod(shift_amount, cells_to_zero)) => {
-                    for i in 2..(cells_to_zero + 2) {
-                        cells[cell_i + i] = 0;
+                InterpreterOp::CompoundOp(CompoundOp::ZeroAdvance(amount)) => {
+                    profiling::scope!("ZeroAdvance");
+                    for _ in 0..*amount {
+                        *cells.get_unchecked_mut(cell_i) = 0;
+                        cell_i += 1;
                     }
-
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::ZeroRetreat(amount)) => {
+                    profiling::scope!("ZeroRetreat");
+                    for _ in 0..*amount {
+                        *cells.get_unchecked_mut(cell_i) = 0;
+                        cell_i -= 1;
+                    }
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::Set(value)) => {
+                    profiling::scope!("Set");
+                    *cells.get_unchecked_mut(cell_i) = *value;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::Dupe(offset)) => {
+                    profiling::scope!("Dupe");
+                    *cells.get_unchecked_mut(cell_i) = *cells.get_unchecked((cell_i as i64 + *offset) as usize);
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+                    cell_i += 1;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::WellBehavedDivMod(shift_amount)) => {
+                    profiling::scope!("WellBehavedDivMod");
                     let n = *cells.get_unchecked(cell_i - 2);
                     let d = *cells.get_unchecked(cell_i - 1);
 
-                    let n_div_d = n.checked_div(d).unwrap_or(0);
-                    let n_mod_d = n.checked_rem(d).unwrap_or(0);
+                    let (n_div_d, n_mod_d) = if d == 0 { (0, 0) } else { (n / d, n % d) };
 
                     *cells.get_unchecked_mut(cell_i - 2) = 0;
                     *cells.get_unchecked_mut(cell_i - 1) = d.wrapping_sub(n_mod_d);
                     *cells.get_unchecked_mut(cell_i) = n_mod_d;
                     *cells.get_unchecked_mut(cell_i + 1) = n_div_d;
+                    *cells.get_unchecked_mut(cell_i + 2) = 0;
+                    *cells.get_unchecked_mut(cell_i + 3) = 0;
 
                     cell_i = (cell_i as i64 + shift_amount) as usize;
                     instr_i += 1;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::LessThan) => {
+                    profiling::scope!("LessThan");
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = (a < b) as u8;
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i + 0) = 0;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::GreaterThan) => {
+                    profiling::scope!("GreaterThan");
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = (a > b) as u8;
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i + 0) = 0;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::LessThanEqual) => {
+                    profiling::scope!("LessThanEqual");
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = (a <= b) as u8;
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i + 0) = 0;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::GreaterThanEqual) => {
+                    profiling::scope!("GreaterThanEqual");
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = (a >= b) as u8;
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i + 0) = 0;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    instr_i += 1;
+                }
                 InterpreterOp::CompoundOp(CompoundOp::MoveAdd(offset)) => {
+                    profiling::scope!("MoveAdd");
                     let current_value = *cells.get_unchecked(cell_i);
                     let destination = cells.get_unchecked_mut((cell_i as i64 + offset) as usize);
                     *destination = destination.wrapping_add(current_value);
@@ -92,11 +173,13 @@ impl<'ops> Interpreter<'ops> {
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::MoveSet(offset)) => {
+                    profiling::scope!("MoveSet");
                     *cells.get_unchecked_mut((cell_i as i64 + offset) as usize) = *cells.get_unchecked(cell_i);
                     *cells.get_unchecked_mut(cell_i) = 0;
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::MoveAdd2(offset1, offset2)) => {
+                    profiling::scope!("MoveAdd2");
                     let current_value = *cells.get_unchecked(cell_i);
 
                     let destination1 = cells.get_unchecked_mut((cell_i as i64 + offset1) as usize);
@@ -106,6 +189,34 @@ impl<'ops> Interpreter<'ops> {
                     *destination2 = destination2.wrapping_add(current_value);
 
                     *cells.get_unchecked_mut(cell_i) = 0;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::PrintStatic(content)) => {
+                    profiling::scope!("PrintStatic");
+                    Self::output(&content);
+                    *cells.get_unchecked_mut(cell_i) = *content.last().unwrap();
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::MoveCellDynamicU8(offset)) => {
+                    // Warning: Unsound
+
+                    profiling::scope!("MoveCellDynamicU8");
+                    let value = *cells.get_unchecked(cell_i - 2);
+                    let index = *cells.get_unchecked_mut(cell_i - 1) as usize;
+                    let offset = *offset as usize;
+                    let final_index = cell_i - 3 - offset + index;
+                    *cells.get_unchecked_mut(final_index) = value;
+                    cell_i -= 2;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::CopyCellDynamicU8(offset)) => {
+                    // Warning: Unsound
+
+                    profiling::scope!("CopyCellDynamicU8");
+                    let offset = *offset as usize;
+                    let index = *cells.get_unchecked_mut(cell_i) as usize;
+                    let final_index = cell_i - 1 - offset + index;
+                    *cells.get_unchecked_mut(cell_i - 1) = *cells.get_unchecked(final_index);
                     instr_i += 1;
                 }
             }
@@ -120,9 +231,9 @@ impl<'ops> Interpreter<'ops> {
             .unwrap_or_default()
     }
 
-    fn output(c: u8) {
+    fn output(slice: &[u8]) {
         let mut stdout = std::io::stdout();
-        _ = stdout.write(&[c]);
+        _ = stdout.write(slice);
         _ = stdout.flush();
     }
 }
