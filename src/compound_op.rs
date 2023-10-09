@@ -4,6 +4,7 @@ use slice_deque::SliceDeque;
 #[derive(Clone, Debug)]
 pub enum CompoundOp {
     BasicOp(BasicOp),
+    Panic,
     Zero,
     ZeroAdvance(u64),
     ZeroRetreat(u64),
@@ -12,10 +13,16 @@ pub enum CompoundOp {
     MoveAdd2(i64, i64),
     MoveSet(i64),
     Dupe(i64),
+    Equals,
+    NotEquals,
+    ShiftLeftLogical,
+    ShiftRightLogical,
     LessThan,
     GreaterThan,
     LessThanEqual,
     GreaterThanEqual,
+    BitAnd,
+    BitNeg,
     WellBehavedDivMod(i64),
     PrintStatic(Vec<u8>),
     MoveCellDynamicU8(u64),
@@ -42,6 +49,11 @@ impl CompoundOpAcc {
         self.building.push_back(CompoundOp::BasicOp(basic_op));
 
         match &self.building[..] {
+            // Zero cell pattern
+            [.., BasicOp(LoopStart), BasicOp(LoopEnd)] => {
+                self.building.truncate_back(self.building.len() - 2);
+                self.building.push_back(Panic);
+            }
             // Zero cell pattern
             [.., BasicOp(LoopStart), BasicOp(ChangeBy(1 | u8::MAX)), BasicOp(LoopEnd)] => {
                 self.building.truncate_back(self.building.len() - 3);
@@ -85,6 +97,106 @@ impl CompoundOpAcc {
                 }
 
                 self.building.push_back(Set(value));
+            }
+            // Equals algorithm
+            [
+                ..,
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopEnd),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(1)),
+                Zero,
+                BasicOp(LoopEnd),
+            ] => {
+                self.building.truncate_back(self.building.len() - 14);
+                self.building.push_back(Equals);
+            }
+            // Not equals algorithm
+            [
+                ..,
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(1)),
+                Zero,
+                BasicOp(LoopEnd),
+            ] => {
+                self.building.truncate_back(self.building.len() - 13);
+                self.building.push_back(NotEquals);
+            }
+            // u8 shift left logical algorithm
+            [
+                ..,
+                ZeroRetreat(1),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-1)),
+                MoveAdd(2),
+                BasicOp(Shift(2)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-2)),
+                BasicOp(ChangeBy(2)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd),
+            ] => {
+                self.building.truncate_back(self.building.len() - 14);
+                self.building.push_back(ShiftLeftLogical);
+            }
+            // u8 shift right logical algorithm
+            [
+                ..,
+                ZeroAdvance(3),
+                Zero,
+                BasicOp(Shift(-4)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(1)),
+                BasicOp(ChangeBy(2)),
+                BasicOp(Shift(-2)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(u8::MAX)),
+                MoveAdd2(2, 3),
+                BasicOp(Shift(3)),
+                MoveAdd(-3),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(2)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-4)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(3)),
+                MoveAdd(-3),
+                BasicOp(Shift(-1)),
+                ZeroRetreat(1),
+                BasicOp(ChangeBy(u8::MAX)), BasicOp(LoopEnd),
+            ] => {
+                self.building.truncate_back(self.building.len() - 32);
+                self.building.push_back(ShiftRightLogical);
             }
             // Move add algorithm
             [
@@ -297,6 +409,110 @@ impl CompoundOpAcc {
                         self.building.truncate_back(self.building.len() - 26);
                         self.building.push_back(GreaterThanEqual);
                     }
+
+                    // Bit and algorithm
+                    [
+                        ..,
+                        Zero,
+                        BasicOp(Shift(2)),
+                        ZeroRetreat(1),
+                        Set(248),
+                        BasicOp(LoopStart),
+                        BasicOp(ChangeBy(8)),
+                        BasicOp(Shift(-2)),
+                        ZeroRetreat(4),
+                        Set(2),
+                        BasicOp(Shift(-2)),
+                        BasicOp(LoopStart),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(Shift(2)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        MoveAdd2(1, 3),
+                        BasicOp(Shift(1)),
+                        MoveAdd(-1),
+                        BasicOp(Shift(4)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(Shift(-2)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(LoopStart),
+                        BasicOp(Shift(-1)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(Shift(-2)),
+                        BasicOp(ChangeBy(2)),
+                        BasicOp(Shift(5)),
+                        BasicOp(ChangeBy(254)),
+                        BasicOp(Shift(-2)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(-5)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(4)),
+                        MoveAdd(-4),
+                        BasicOp(Shift(-2)),
+                        Set(2),
+                        BasicOp(Shift(-1)),
+                        BasicOp(LoopStart),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(Shift(1)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        MoveAdd2(1, 3),
+                        BasicOp(Shift(1)),
+                        MoveAdd(-1),
+                        BasicOp(Shift(3)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(Shift(-1)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(LoopStart),
+                        BasicOp(Shift(1)),
+                        BasicOp(ChangeBy(254)),
+                        BasicOp(Shift(-2)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(Shift(-2)),
+                        BasicOp(ChangeBy(2)),
+                        BasicOp(Shift(3)),
+                        BasicOp(ChangeBy(1)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(-4)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(3)),
+                        MoveAdd(-3),
+                        BasicOp(Shift(2)),
+                        BasicOp(LoopStart),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(Shift(1)),
+                        MoveAdd(-2),
+                        BasicOp(Shift(-1)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(1)),
+                        ZeroAdvance(1),
+                        MoveAdd2(-1, -2),
+                        BasicOp(Shift(-1)),
+                        MoveAdd(1),
+                        BasicOp(Shift(-1)),
+                        BasicOp(LoopStart),
+                        BasicOp(Shift(-1)),
+                        MoveAdd(-1),
+                        BasicOp(Shift(-1)),
+                        BasicOp(LoopStart),
+                        BasicOp(Shift(1)),
+                        BasicOp(ChangeBy(2)),
+                        BasicOp(Shift(-1)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(2)),
+                        BasicOp(ChangeBy(u8::MAX)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(-1)),
+                        MoveAdd(4),
+                        BasicOp(Shift(3)),
+                        BasicOp(ChangeBy(249)),
+                        BasicOp(LoopEnd),
+                        BasicOp(Shift(1)),
+                        MoveAdd(-9),
+                    ] => {
+                        self.building.truncate_back(self.building.len() - 96);
+                        self.building.push_back(BitAnd);
+                    }
                     _ => {}
                 }
             }
@@ -316,6 +532,22 @@ impl CompoundOpAcc {
                 let offset2 = *toward_amount2;
                 self.building.truncate_back(self.building.len() - 8);
                 self.building.push_back(MoveAdd2(offset1, offset1 + offset2));
+            }
+            // Bit negate algorithm
+            [
+                ..,
+                MoveAdd(1),
+                BasicOp(Shift(1)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(-1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(1)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd)
+            ] => {
+                self.building.truncate_back(self.building.len() - 9);
+                self.building.push_back(BitNeg);
             }
             // Divmod algorithm
             [
@@ -495,13 +727,14 @@ impl CompoundOpAcc {
             ] if *neg_2_plus_neg_offset == *move_neg_2_plus_neg_offset
                 && *pos_2_plus_pos_offset == *shift_pos_2_plus_pos_offset
                 && -*neg_2_plus_neg_offset == *pos_2_plus_pos_offset
-                && *pos_2_plus_pos_offset - 2 == *move_offset => {
+                && *pos_2_plus_pos_offset - 2 == *move_offset =>
+            {
                 // We ignore normal first shift left instruction,
                 // so offset will be 1 less than normal
                 let offset = *move_offset as u64;
                 self.building.truncate_back(self.building.len() - 28);
                 self.building.push_back(CopyCellDynamicU8(offset));
-            },
+            }
             _ => (),
         }
 

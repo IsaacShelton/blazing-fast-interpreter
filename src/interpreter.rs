@@ -66,6 +66,19 @@ impl<'ops> Interpreter<'ops> {
                     eprintln!("[error] Cannot execute unprocessed loop instruction");
                     return;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::Panic) => {
+                    if *cells.get_unchecked_mut(cell_i) != 0 {
+                        eprintln!("[PANIC] Program entered panic loop with error code {}, instr_i = {}, cell_i = {}", *cells.get_unchecked_mut(cell_i), instr_i, cell_i);
+                        eprintln!("Memory:");
+                        let range = 20;
+                        let start = if cell_i >= range { cell_i - range } else { 0 };
+                        let end = if cell_i + range < CELL_COUNT { cell_i + range } else { CELL_COUNT };
+                        for i in start..end {
+                            eprintln!("cell {} is {}", i, *cells.get_unchecked_mut(i));
+                        }
+                        return;
+                    }
+                }
                 InterpreterOp::CompoundOp(CompoundOp::Zero) => {
                     profiling::scope!("Zero");
                     *cells.get_unchecked_mut(cell_i) = 0;
@@ -99,6 +112,22 @@ impl<'ops> Interpreter<'ops> {
                     cell_i += 1;
                     instr_i += 1;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::BitAnd) => {
+                    // Warning: Unsound
+
+                    // a b ? ? ? ? ? ?
+                    //               ^
+
+                    profiling::scope!("BitAnd");
+
+                    let a = *cells.get_unchecked(cell_i - 7);
+                    let b = *cells.get_unchecked(cell_i - 6);
+
+                    *cells.get_unchecked_mut(cell_i - 7) = a & b;
+                    *cells.get_unchecked_mut(cell_i - 6) = 0;
+                    cell_i += 2;
+                    instr_i += 1;
+                }
                 InterpreterOp::CompoundOp(CompoundOp::WellBehavedDivMod(shift_amount)) => {
                     profiling::scope!("WellBehavedDivMod");
                     let n = *cells.get_unchecked(cell_i - 2);
@@ -114,6 +143,67 @@ impl<'ops> Interpreter<'ops> {
                     *cells.get_unchecked_mut(cell_i + 3) = 0;
 
                     cell_i = (cell_i as i64 + shift_amount) as usize;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::BitNeg) => {
+                    profiling::scope!("BitNeg");
+
+                    let a = *cells.get_unchecked(cell_i);
+                    *cells.get_unchecked_mut(cell_i) = !a;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+                    
+                    cell_i += 1;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::Equals) => {
+                    profiling::scope!("Equals");
+
+                    let a = *cells.get_unchecked(cell_i);
+                    let b = *cells.get_unchecked(cell_i + 1);
+                    *cells.get_unchecked_mut(cell_i) = (a == b) as u8;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    cell_i += 1;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::NotEquals) => {
+                    profiling::scope!("NotEquals");
+
+                    let a = *cells.get_unchecked(cell_i);
+                    let b = *cells.get_unchecked(cell_i + 1);
+
+                    *cells.get_unchecked_mut(cell_i) = (a != b) as u8;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+
+                    cell_i += 1;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::ShiftLeftLogical) => {
+                    profiling::scope!("ShiftLeftLogical");
+
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = if b >= 8 { 0 } else { a << b };
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i) = 0;
+
+                    cell_i -= 1;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::ShiftRightLogical) => {
+                    profiling::scope!("ShiftRightLogical");
+                    let a = *cells.get_unchecked(cell_i - 2);
+                    let b = *cells.get_unchecked(cell_i - 1);
+
+                    *cells.get_unchecked_mut(cell_i - 2) = if b >= 8 { 0 } else { a >> b };
+                    *cells.get_unchecked_mut(cell_i - 1) = 0;
+                    *cells.get_unchecked_mut(cell_i) = 0;
+                    *cells.get_unchecked_mut(cell_i + 1) = 0;
+                    *cells.get_unchecked_mut(cell_i + 2) = 0;
+                    *cells.get_unchecked_mut(cell_i + 3) = 0;
+
+                    cell_i -= 1;
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::LessThan) => {
