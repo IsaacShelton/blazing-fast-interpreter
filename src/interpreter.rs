@@ -66,18 +66,16 @@ impl<'ops> Interpreter<'ops> {
                     eprintln!("[error] Cannot execute unprocessed loop instruction");
                     return;
                 }
-                InterpreterOp::CompoundOp(CompoundOp::Panic) => {
-                    if *cells.get_unchecked_mut(cell_i) != 0 {
-                        eprintln!("[PANIC] Program entered panic loop with error code {}, instr_i = {}, cell_i = {}", *cells.get_unchecked_mut(cell_i), instr_i, cell_i);
-                        eprintln!("Memory:");
-                        let range = 20;
-                        let start = if cell_i >= range { cell_i - range } else { 0 };
-                        let end = if cell_i + range < CELL_COUNT { cell_i + range } else { CELL_COUNT };
-                        for i in start..end {
-                            eprintln!("cell {} is {}", i, *cells.get_unchecked_mut(i));
-                        }
-                        return;
+                InterpreterOp::CompoundOp(CompoundOp::Panic(value)) => {
+                    eprintln!("[PANIC] Program entered panic loop with error code {}, instr_i = {}, cell_i = {}", value, instr_i, cell_i);
+                    eprintln!("Memory before panic:");
+                    let range = 20;
+                    let start = if cell_i >= range { cell_i - range } else { 0 };
+                    let end = if cell_i + range < CELL_COUNT { cell_i + range } else { CELL_COUNT };
+                    for i in start..end {
+                        eprintln!("cell {} is {}", i, *cells.get_unchecked_mut(i));
                     }
+                    return;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::Zero) => {
                     profiling::scope!("Zero");

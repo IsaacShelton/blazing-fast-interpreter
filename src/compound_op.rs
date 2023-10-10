@@ -4,7 +4,7 @@ use slice_deque::SliceDeque;
 #[derive(Clone, Debug)]
 pub enum CompoundOp {
     BasicOp(BasicOp),
-    Panic,
+    Panic(u8),
     Zero,
     ZeroAdvance(u64),
     ZeroRetreat(u64),
@@ -49,10 +49,11 @@ impl CompoundOpAcc {
         self.building.push_back(CompoundOp::BasicOp(basic_op));
 
         match &self.building[..] {
-            // Zero cell pattern
-            [.., BasicOp(LoopStart), BasicOp(LoopEnd)] => {
-                self.building.truncate_back(self.building.len() - 2);
-                self.building.push_back(Panic);
+            // Panic loop pattern
+            [.., Set(value), BasicOp(LoopStart), BasicOp(LoopEnd)] if *value != 0 => {
+                let value = *value;
+                self.building.truncate_back(self.building.len() - 3);
+                self.building.push_back(Panic(value));
             }
             // Zero cell pattern
             [.., BasicOp(LoopStart), BasicOp(ChangeBy(1 | u8::MAX)), BasicOp(LoopEnd)] => {
