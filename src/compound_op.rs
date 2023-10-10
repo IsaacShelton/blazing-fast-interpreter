@@ -194,7 +194,8 @@ impl CompoundOpAcc {
                 MoveAdd(-3),
                 BasicOp(Shift(-1)),
                 ZeroRetreat(1),
-                BasicOp(ChangeBy(u8::MAX)), BasicOp(LoopEnd),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd),
             ] => {
                 self.building.truncate_back(self.building.len() - 32);
                 self.building.push_back(ShiftRightLogical);
@@ -545,7 +546,7 @@ impl CompoundOpAcc {
                 BasicOp(ChangeBy(u8::MAX)),
                 BasicOp(Shift(1)),
                 BasicOp(ChangeBy(u8::MAX)),
-                BasicOp(LoopEnd)
+                BasicOp(LoopEnd),
             ] => {
                 self.building.truncate_back(self.building.len() - 9);
                 self.building.push_back(BitNeg);
