@@ -5,8 +5,8 @@ mod interpreter_op;
 
 use anyhow::Result;
 use basic_op::BasicOpAcc;
-use clap::{command, Arg};
-use compound_op::{CompoundOpAcc, CompoundOp};
+use clap::{command, Arg, ArgAction};
+use compound_op::{CompoundOp, CompoundOpAcc};
 use interpreter::Interpreter;
 use interpreter_op::{InterpreterOp, InterpreterOpAcc};
 use std::{
@@ -96,6 +96,11 @@ fn main() -> Result<()> {
         .about("A blazing fast interpreter for running BrainF*ck programs")
         .arg(Arg::new("filename").required(true))
         .arg(Arg::new("emit-ops").long("emit-ops").value_name("FILE"))
+        .arg(
+            Arg::new("bounds-checks")
+                .long("bounds-checks")
+                .action(ArgAction::SetTrue),
+        )
         .get_matches();
 
     let filename = args.get_one::<String>("filename").unwrap();
@@ -110,8 +115,14 @@ fn main() -> Result<()> {
     let interpreter = Interpreter::new(parser.view()?);
 
     if !args.contains_id("emit-ops") {
-        unsafe {
-            interpreter.interpret();
+        if args.get_flag("bounds-checks") {
+            unsafe {
+                interpreter.interpret::<true>();
+            }
+        } else {
+            unsafe {
+                interpreter.interpret::<false>();
+            }
         }
     }
 
