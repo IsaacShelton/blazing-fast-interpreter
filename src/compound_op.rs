@@ -722,7 +722,6 @@ impl CompoundOpAcc {
                 BasicOp(ChangeBy(u8::MAX)),
                 BasicOp(Shift(-1)),
                 MoveAdd(-1),
-                BasicOp(Shift(1)),
                 MoveAdd(-1),
                 BasicOp(Shift(-1)),
                 BasicOp(LoopEnd),
@@ -734,7 +733,7 @@ impl CompoundOpAcc {
                 // We ignore normal first shift left instruction,
                 // so offset will be 1 less than normal
                 let offset = *move_offset as u64;
-                self.building.truncate_back(self.building.len() - 28);
+                self.building.truncate_back(self.building.len() - 27);
                 self.building.push_back(CopyCellDynamicU8(offset));
             }
             _ => (),
