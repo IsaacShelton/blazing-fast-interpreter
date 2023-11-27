@@ -1,3 +1,5 @@
+use std::fmt;
+
 use anyhow::{anyhow, Result};
 
 #[derive(Copy, Clone, Debug)]
@@ -14,11 +16,17 @@ use BasicOp::*;
 
 pub struct BasicOpAcc {
     building: Option<BasicOp>,
+    trailing: Option<(BasicOp, usize)>,
+    number: Option<usize>,
 }
 
 impl BasicOpAcc {
     pub fn new() -> Self {
-        Self { building: None }
+        Self {
+            building: None,
+            trailing: None,
+            number: None,
+        }
     }
 
     pub fn feed(&mut self, op: BasicOp) -> Option<BasicOp> {
@@ -52,19 +60,62 @@ impl BasicOpAcc {
             _ => (),
         };
 
+        let count = self.number.unwrap_or(1);
+
         let op = match byte {
-            b'+' => BasicOp::ChangeBy(1),
-            b'-' => BasicOp::ChangeBy(u8::MAX),
-            b'[' => BasicOp::LoopStart,
-            b']' => BasicOp::LoopEnd,
-            b'<' => BasicOp::Shift(-1),
-            b'>' => BasicOp::Shift(1),
-            b',' => BasicOp::Input(1),
-            b'.' => BasicOp::Output(1),
+            b'+' => BasicOp::ChangeBy(count as u8),
+            b'-' => BasicOp::ChangeBy(0 - count as u8),
+            b'[' => {
+                let op = BasicOp::LoopStart;
+                if count > 1 {
+                    self.trailing = Some((op, count - 1));
+                }
+                op
+            }
+            b']' => {
+                let op = BasicOp::LoopEnd;
+                if count > 1 {
+                    self.trailing = Some((op, count - 1));
+                }
+                op
+            }
+            b'<' => BasicOp::Shift(-(count as i64)),
+            b'>' => BasicOp::Shift(count as i64),
+            b',' => BasicOp::Input(count as u64),
+            b'.' => BasicOp::Output(count as u64),
+            b'0'..=b'9' => {
+                let digit = (byte - b'0') as usize;
+
+                self.number = Some(match self.number {
+                    Some(count) => 10 * count + digit,
+                    None => digit,
+                });
+
+                return Ok(None);
+            }
             _ => return Err(anyhow!("Invalid character")),
         };
 
+        self.number = None;
         Ok(self.feed(op))
+    }
+
+    pub fn continued(&mut self) -> Option<BasicOp> {
+        match self.trailing {
+            Some((_, 0)) => {
+                self.trailing = None;
+                None
+            }
+            Some((op, 1)) => {
+                self.trailing = None;
+                Some(op)
+            }
+            Some((op, count)) => {
+                self.trailing = Some((op, count - 1));
+                Some(op)
+            }
+            None => None,
+        }
     }
 
     pub fn filter(op: BasicOp) -> Option<BasicOp> {
@@ -76,6 +127,70 @@ impl BasicOpAcc {
     }
 
     pub fn finalize(&mut self) -> Option<BasicOp> {
-        std::mem::replace(&mut self.building, None).and_then(Self::filter)
+        let built = std::mem::replace(&mut self.building, None).and_then(Self::filter);
+
+        match built {
+            Some(_) => built,
+            None => self.continued(),
+        }
+    }
+}
+
+impl fmt::Display for BasicOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            ChangeBy(amount) => {
+                if amount > 128 {
+                    let count = u8::MAX.wrapping_sub(amount - 1);
+
+                    if count == 1 {
+                        write!(f, "-")
+                    } else {
+                        write!(f, "{}-", count)
+                    }
+                } else if amount > 0 {
+                    if amount == 1 {
+                        write!(f, "+")
+                    } else {
+                        write!(f, "{}+", amount)
+                    }
+                } else {
+                    fmt::Result::Ok(())
+                }
+            }
+            Shift(amount) => {
+                if amount > 0 {
+                    if amount == 1 {
+                        write!(f, ">")
+                    } else {
+                        write!(f, "{}>", amount)
+                    }
+                } else if amount < 0 {
+                    if amount == -1 {
+                        write!(f, "<")
+                    } else {
+                        write!(f, "{}<", -amount)
+                    }
+                } else {
+                    fmt::Result::Ok(())
+                }
+            }
+            LoopStart => write!(f, "["),
+            LoopEnd => write!(f, "]"),
+            Input(count) => {
+                if count == 1 {
+                    write!(f, ",")
+                } else {
+                    write!(f, "{},", count)
+                }
+            }
+            Output(count) => {
+                if count == 1 {
+                    write!(f, ".")
+                } else {
+                    write!(f, "{}.", count)
+                }
+            }
+        }
     }
 }
