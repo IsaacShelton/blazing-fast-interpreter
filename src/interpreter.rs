@@ -370,6 +370,26 @@ impl<'ops> Interpreter<'ops> {
                     cell_i -= 5;
                     instr_i += 1;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::CopyCellDynamicU32(offset)) => {
+                    // Warning: Unsound
+
+                    profiling::scope!("CopyCellDynamicU32");
+
+                    let bytes = [
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 4),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 3),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 2),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 1)
+                    ];
+
+                    let index = u32::from_le_bytes(bytes);
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 4) 
+                        = *get::<BOUNDS_CHECKS>(&cells, cell_i - *offset as usize + index as usize);
+
+                    cell_i -= 3;
+                    instr_i += 1;
+                }
             }
         }
     }
