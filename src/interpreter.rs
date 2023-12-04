@@ -3,7 +3,7 @@ use std::io::Read;
 use crate::{basic_op::BasicOp, compound_op::CompoundOp, interpreter_op::InterpreterOp};
 use std::io::Write;
 
-const CELL_COUNT: usize = 25_000_000;
+pub const CELL_COUNT: usize = 25_000_000;
 
 pub struct Interpreter<'ops> {
     ops: &'ops [InterpreterOp],
@@ -329,11 +329,32 @@ impl<'ops> Interpreter<'ops> {
 
                     profiling::scope!("MoveCellDynamicU8");
                     let value = *get::<BOUNDS_CHECKS>(&cells, cell_i - 2);
-                    let index = *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 1) as usize;
+                    let index = *get::<BOUNDS_CHECKS>(&cells, cell_i - 1);
                     let offset = *offset as usize;
-                    let final_index = cell_i - 3 - offset + index;
+                    let final_index = cell_i - 3 - offset + index as usize;
                     *get_mut::<BOUNDS_CHECKS>(&mut cells, final_index) = value;
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 2) = index;
                     cell_i -= 2;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::MoveCellDynamicU16(offset)) => {
+                    // Warning: Unsound
+
+                    profiling::scope!("MoveCellDynamicU16");
+
+                    let bytes = [
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 2),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 1)
+                    ];
+
+                    let value = *get::<BOUNDS_CHECKS>(&cells, cell_i - 3);
+                    let index = u16::from_le_bytes(bytes);
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - (*offset) as usize + index as usize) = value;
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 3) = bytes[0];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 2) = bytes[1];
+                    cell_i -= 3;
                     instr_i += 1;
                 }
                 InterpreterOp::CompoundOp(CompoundOp::CopyCellDynamicU8(offset)) => {
@@ -341,7 +362,7 @@ impl<'ops> Interpreter<'ops> {
 
                     profiling::scope!("CopyCellDynamicU8");
                     let offset = *offset as usize;
-                    let index = *get::<BOUNDS_CHECKS>(&cells, cell_i) as usize;
+                    let index = *get::<BOUNDS_CHECKS>(&cells, cell_i - 1) as usize;
                     let final_index = cell_i - 1 - offset + index;
                     *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 1) = *get::<BOUNDS_CHECKS>(&cells, final_index);
                     instr_i += 1;
@@ -388,6 +409,17 @@ impl<'ops> Interpreter<'ops> {
                         = *get::<BOUNDS_CHECKS>(&cells, cell_i - *offset as usize + index as usize);
 
                     cell_i -= 3;
+                    instr_i += 1;
+                }
+                InterpreterOp::CompoundOp(CompoundOp::MoveCellsStaticReverse(offset, count)) => {
+                    let end_src = (cell_i as i64 + 1) as usize;
+                    let start_src = (cell_i as i64 - *count as i64 + 1) as usize;
+                    let end_dest = (cell_i as i64 + *offset + 1) as usize;
+                    let start_dest = (end_dest as i64 - *count as i64) as usize;
+
+                    cells.copy_within(start_src..end_src, start_dest);
+                    cells[start_src..end_src].fill(0);
+                    cell_i -= *count as usize;
                     instr_i += 1;
                 }
             }

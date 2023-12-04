@@ -26,9 +26,11 @@ pub enum CompoundOp {
     WellBehavedDivMod(i64),
     PrintStatic(Vec<u8>),
     MoveCellDynamicU8(u64),
+    MoveCellDynamicU16(u64),
     MoveCellDynamicU32(u64),
     CopyCellDynamicU8(u64),
     CopyCellDynamicU32(u64),
+    MoveCellsStaticReverse(i64, u64),
 }
 
 pub struct CompoundOpAcc {
@@ -247,6 +249,7 @@ impl CompoundOpAcc {
 
                         self.building.push_back(MoveSet(offset));
                     }
+
                     // Dupe cell algorithm
                     [
                         ..,
@@ -273,6 +276,7 @@ impl CompoundOpAcc {
 
                         self.building.push_back(Dupe(offset));
                     }
+
                     // Less than algorithm
                     [
                         ..,
@@ -636,6 +640,7 @@ impl CompoundOpAcc {
                     panic!();
                 }
             }
+
             // Move cell dynamic u8 algorithm
             [
                 ..,
@@ -691,17 +696,16 @@ impl CompoundOpAcc {
 
                 self.building.truncate(self.building.len() - 44);
 
+                self.building.push_back(MoveCellDynamicU8(offset));
+
                 if neg_2_plus_extra != -2 {
                     self.building.push_back(BasicOp(Shift(neg_2_plus_extra - -2)));
                 }
-
-                self.building.push_back(MoveCellDynamicU8(offset));
             }
 
             // Copy cell dynamic u8 algorithm
             [
                 ..,
-                MoveAdd(-1),
                 Dupe(-1),
                 BasicOp(Shift(-2)),
                 BasicOp(LoopStart),
@@ -725,6 +729,7 @@ impl CompoundOpAcc {
                 BasicOp(ChangeBy(u8::MAX)),
                 BasicOp(Shift(-1)),
                 MoveAdd(-1),
+                BasicOp(Shift(1)),
                 MoveAdd(-1),
                 BasicOp(Shift(-1)),
                 BasicOp(LoopEnd),
@@ -738,6 +743,112 @@ impl CompoundOpAcc {
                 let offset = *move_offset as u64;
                 self.building.truncate_back(self.building.len() - 27);
                 self.building.push_back(CopyCellDynamicU8(offset));
+            }
+
+            // Move cell dynamic u16 algorithm
+            [
+                ..,
+                ZeroAdvance(six_plus_extra),
+                Zero,
+                BasicOp(Shift(-8)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-6)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(2)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-6)),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-2)),
+                MoveAdd(2),
+                BasicOp(Shift(8)),
+                MoveAdd(-7),
+                BasicOp(Shift(-1)),
+                MoveAdd(-7),
+                BasicOp(Shift(-3)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(254)),
+                ZeroAdvance(4),
+                Zero,
+                BasicOp(Shift(-256)),
+                MoveAdd(256),
+                BasicOp(Shift(-1)),
+                MoveAdd(256),
+                BasicOp(Shift(-1)),
+                MoveAdd(256),
+                BasicOp(Shift(-1)),
+                MoveAdd(256),
+                BasicOp(Shift(-1)),
+                MoveAdd(256),
+                BasicOp(Shift(258)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                BasicOp(Shift(4)),
+                ZeroRetreat(1),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(2)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                MoveSet(neg_offset_and_2),
+                BasicOp(Shift(3)),
+                MoveAdd(-3),
+                BasicOp(Shift(1)),
+                MoveAdd(-3),
+                BasicOp(Shift(-4)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(-2)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(u8::MAX)),
+                MoveAdd(-256),
+                BasicOp(Shift(-256)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(neg_three_plus_extra)),
+            ] if *six_plus_extra >= 6 => {
+                let advance_extra = *six_plus_extra - 6;
+                let extra_post_shift = neg_three_plus_extra + 3;
+                let offset = -*neg_offset_and_2 + 1;
+
+                self.building.truncate_back(self.building.len() - 85);
+
+                if advance_extra != 0 {
+                    self.building.push_back(ZeroAdvance(advance_extra));
+                }
+
+                self.building.push_back(MoveCellDynamicU16(offset as u64));
+
+                if extra_post_shift != 0 {
+                    self.building.push_back(BasicOp(Shift(extra_post_shift)));
+                }
             }
 
             // Move cell dynamic u32 algorithm
@@ -1172,6 +1283,42 @@ impl CompoundOpAcc {
                 }
 
                 self.building.push_back(CopyCellDynamicU32(offset));
+
+                if extra_shift != 0 {
+                    self.building.push_back(BasicOp(Shift(extra_shift)));
+                }
+            }
+
+            // MoveCellsStaticReverse algorithm
+            [
+                ..,
+                MoveSet(offset),
+                BasicOp(Shift(-1)),
+                MoveSet(offset_again),
+                BasicOp(Shift(negative_1_plus_extra)),
+            ] if *offset == *offset_again => {
+                let offset = *offset;
+                let extra_shift = *negative_1_plus_extra + 1;
+
+                self.building.truncate_back(self.building.len() - 4);
+                self.building.push_back(MoveCellsStaticReverse(offset, 2));
+
+                if extra_shift != 0 {
+                    self.building.push_back(BasicOp(Shift(extra_shift)));
+                }
+            }
+            [
+                ..,
+                MoveCellsStaticReverse(offset, count),
+                MoveSet(offset_again),
+                BasicOp(Shift(negative_1_plus_extra)),
+            ] if *offset == *offset_again => {
+                let offset = *offset;
+                let count = *count;
+                let extra_shift = *negative_1_plus_extra + 1;
+
+                self.building.truncate_back(self.building.len() - 3);
+                self.building.push_back(MoveCellsStaticReverse(offset, count + 1));
 
                 if extra_shift != 0 {
                     self.building.push_back(BasicOp(Shift(extra_shift)));

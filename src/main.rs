@@ -2,6 +2,7 @@ mod basic_op;
 mod compound_op;
 mod interpreter;
 mod interpreter_op;
+mod transpile_c;
 
 use anyhow::Result;
 use basic_op::{BasicOpAcc, BasicOp};
@@ -13,6 +14,7 @@ use std::{
     fs::File,
     io::{prelude::*, BufReader},
 };
+use transpile_c::transpile_c;
 
 struct Parser {
     basic_op_acc: BasicOpAcc,
@@ -123,6 +125,7 @@ fn main() -> Result<()> {
                 .long("bounds-checks")
                 .action(ArgAction::SetTrue),
         )
+        .arg(Arg::new("transpile-c").long("transpile-c").value_name("OUT_FILE"))
         .get_matches();
 
     let filename = args.get_one::<String>("filename").unwrap();
@@ -135,6 +138,10 @@ fn main() -> Result<()> {
     }
 
     parser.flush()?;
+
+    if args.contains_id("transpile-c") {
+        return transpile_c(parser.view()?.iter(), args.get_one::<String>("transpile-c").unwrap());
+    }
 
     let interpreter = Interpreter::new(parser.view()?);
 
