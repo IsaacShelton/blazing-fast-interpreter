@@ -452,6 +452,36 @@ impl<'ops> Interpreter<'ops> {
                     cell_i -= 5;
                     instr_i += 1;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::MulU32) => {
+                    // Warning: Unsound
+
+                    let bytes1 = [
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 8),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 7),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 6),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 5),
+                    ];
+
+                    let bytes2 = [
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 4),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 3),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 2),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 1),
+                    ];
+
+                    let a = u32::from_le_bytes(bytes1);
+                    let b = u32::from_le_bytes(bytes2);
+
+                    let result = a.wrapping_mul(b).to_le_bytes();
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 8) = result[0];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 7) = result[1];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 6) = result[2];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 5) = result[3];
+
+                    cell_i -= 5;
+                    instr_i += 1;
+                }
             }
         }
     }
