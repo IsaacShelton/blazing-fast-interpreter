@@ -26,6 +26,7 @@ pub enum CompoundOp {
     WellBehavedDivMod(i64),
     PrintStatic(Vec<u8>),
     MoveCellDynamicU8(u64),
+    MoveCellDynamicU32(u64),
     CopyCellDynamicU8(u64),
 }
 
@@ -36,7 +37,7 @@ pub struct CompoundOpAcc {
 use BasicOp::*;
 use CompoundOp::*;
 
-const WINDOW_SIZE: usize = 127;
+const WINDOW_SIZE: usize = 256;
 
 impl CompoundOpAcc {
     pub fn new() -> Self {
@@ -234,8 +235,8 @@ impl CompoundOpAcc {
                     ] if toward_amount_plus_extra.abs() >= back_amount.abs()
                         && -*back_amount == *move_add_toward_amount =>
                     {
-                        let extra = toward_amount_plus_extra - -*back_amount;
-                        let offset = -back_amount;
+                        let extra = toward_amount_plus_extra + *back_amount;
+                        let offset = *move_add_toward_amount;
 
                         self.building.truncate_back(self.building.len() - 4);
 
@@ -695,6 +696,7 @@ impl CompoundOpAcc {
 
                 self.building.push_back(MoveCellDynamicU8(offset));
             }
+
             // Copy cell dynamic u8 algorithm
             [
                 ..,
@@ -735,6 +737,238 @@ impl CompoundOpAcc {
                 let offset = *move_offset as u64;
                 self.building.truncate_back(self.building.len() - 27);
                 self.building.push_back(CopyCellDynamicU8(offset));
+            }
+
+            // Move cell dynamic u32 algorithm
+            [
+                ..,
+                ZeroAdvance(amount_plus_11),
+                Zero,
+                BasicOp(Shift(-16)),
+                MoveSet(5),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(-5)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(5)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-13)),
+                BasicOp(ChangeBy(255)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(5)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-13)),
+                BasicOp(ChangeBy(255)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(5)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-13)),
+                BasicOp(ChangeBy(255)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(Shift(5)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(4)),
+                BasicOp(ChangeBy(1)),
+                BasicOp(Shift(-13)),
+                BasicOp(ChangeBy(255)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(13)),
+                MoveAdd(-13),
+                BasicOp(Shift(-1)),
+                MoveAdd(-13),
+                BasicOp(Shift(-1)),
+                MoveAdd(-13),
+                BasicOp(Shift(-1)),
+                MoveAdd(-13),
+                BasicOp(Shift(-5)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                BasicOp(Shift(16777212)),
+                ZeroAdvance(8),
+                Zero,
+                BasicOp(Shift(-16777224)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(1)),
+                MoveAdd(16777216),
+                BasicOp(Shift(16777202)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                BasicOp(Shift(65533)),
+                ZeroAdvance(8),
+                Zero,
+                BasicOp(Shift(-65544)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(1)),
+                MoveAdd(65536),
+                BasicOp(Shift(65531)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                BasicOp(Shift(254)),
+                ZeroAdvance(8),
+                Zero,
+                BasicOp(Shift(-264)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(1)),
+                MoveAdd(256),
+                BasicOp(Shift(250)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                BasicOp(Shift(8)),
+                ZeroRetreat(1),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(-4)),
+                MoveAdd(1),
+                BasicOp(Shift(-1)),
+                MoveAdd(1),
+                BasicOp(Shift(2)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(-1)),
+                MoveSet(negative_offset_plus_sizeof_index_which_is_4),
+                BasicOp(Shift(5)),
+                MoveAdd(-5),
+                BasicOp(Shift(1)),
+                MoveAdd(-5),
+                BasicOp(Shift(1)),
+                MoveAdd(-5),
+                BasicOp(Shift(1)),
+                MoveAdd(-5),
+                BasicOp(Shift(-8)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                BasicOp(Shift(-1)),
+                ZeroAdvance(1),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(1)),
+                MoveAdd(-1),
+                BasicOp(Shift(-4)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                MoveAdd(-256),
+                BasicOp(Shift(1)),
+                MoveAdd(-256),
+                BasicOp(Shift(1)),
+                MoveAdd(-256),
+                BasicOp(Shift(-258)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                MoveAdd(-65536),
+                BasicOp(Shift(1)),
+                MoveAdd(-65536),
+                BasicOp(Shift(-65537)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(1)),
+                BasicOp(LoopStart),
+                BasicOp(ChangeBy(255)),
+                MoveAdd(-16777216),
+                BasicOp(Shift(-16777216)),
+                BasicOp(LoopEnd),
+                BasicOp(Shift(extra_plus_negative_seven)),
+            ] if *amount_plus_11 >= 11 => {
+                let extra_post_shift = *extra_plus_negative_seven + 7;
+                let extra_pre_advance = *amount_plus_11 - 11;
+                let offset = -*negative_offset_plus_sizeof_index_which_is_4 + 1;
+
+                self.building.truncate_back(self.building.len() - 211);
+
+                if extra_pre_advance != 0 {
+                    self.building.push_back(ZeroAdvance(extra_pre_advance));
+                }
+
+                self.building.push_back(MoveCellDynamicU32(offset as u64));
+
+                if extra_post_shift != 0 {
+                    self.building.push_back(BasicOp(Shift(extra_post_shift)));
+                }
             }
             _ => (),
         }

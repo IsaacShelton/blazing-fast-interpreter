@@ -3,7 +3,7 @@ use std::io::Read;
 use crate::{basic_op::BasicOp, compound_op::CompoundOp, interpreter_op::InterpreterOp};
 use std::io::Write;
 
-const CELL_COUNT: usize = 250_000_000;
+const CELL_COUNT: usize = 25_000_000;
 
 pub struct Interpreter<'ops> {
     ops: &'ops [InterpreterOp],
@@ -74,10 +74,11 @@ impl<'ops> Interpreter<'ops> {
                         value, instr_i, cell_i
                     );
                     eprintln!("Memory before panic:");
-                    let range = 20;
-                    let start = if cell_i >= range { cell_i - range } else { 0 };
-                    let end = if cell_i + range < CELL_COUNT {
-                        cell_i + range
+                    let forward_range = 20;
+                    let back_range = 20;
+                    let start = if cell_i >= back_range { cell_i - back_range } else { 0 };
+                    let end = if cell_i + forward_range < CELL_COUNT {
+                        cell_i + forward_range
                     } else {
                         CELL_COUNT
                     };
@@ -299,7 +300,8 @@ impl<'ops> Interpreter<'ops> {
                 }
                 InterpreterOp::CompoundOp(CompoundOp::MoveSet(offset)) => {
                     profiling::scope!("MoveSet");
-                    *get_mut::<BOUNDS_CHECKS>(&mut cells, (cell_i as i64 + offset) as usize) = *get::<BOUNDS_CHECKS>(&cells, cell_i);
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, (cell_i as i64 + offset) as usize) =
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i);
                     *get_mut::<false>(&mut cells, cell_i) = 0;
                     instr_i += 1;
                 }
@@ -344,6 +346,30 @@ impl<'ops> Interpreter<'ops> {
                     *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 1) = *get::<BOUNDS_CHECKS>(&cells, final_index);
                     instr_i += 1;
                 }
+                InterpreterOp::CompoundOp(CompoundOp::MoveCellDynamicU32(offset)) => {
+                    // Warning: Unsound
+
+                    profiling::scope!("MoveCellDynamicU32");
+
+                    let bytes = [
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 4),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 3),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 2),
+                        *get::<BOUNDS_CHECKS>(&cells, cell_i - 1)
+                    ];
+
+                    let value = *get::<BOUNDS_CHECKS>(&cells, cell_i - 5);
+                    let index = u32::from_le_bytes(bytes);
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - (*offset) as usize + index as usize) = value;
+
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 5) = bytes[0];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 4) = bytes[1];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 3) = bytes[2];
+                    *get_mut::<BOUNDS_CHECKS>(&mut cells, cell_i - 2) = bytes[3];
+                    cell_i -= 5;
+                    instr_i += 1;
+                }
             }
         }
     }
@@ -378,4 +404,3 @@ unsafe fn get_mut<const BOUNDS_CHECKS: bool>(memory: &mut [u8], index: usize) ->
         memory.get_unchecked_mut(index)
     }
 }
-
