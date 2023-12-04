@@ -12,6 +12,7 @@ pub fn transpile_c<'a>(ops: impl Iterator<Item = &'a InterpreterOp>, output_file
     f.write(b"#include <stdio.h>\n")?;
     f.write(b"#include <stdlib.h>\n")?;
     f.write(b"#include <string.h>\n")?;
+    f.write(b"#include <stdint.h>\n")?;
     f.write(b"static inline void put(unsigned char c){ putchar((char) c); }\n")?;
     f.write(
         b"static inline unsigned char get(void){ char c = getc(stdin); return c != EOF ? (unsigned char) c : 0; }\n",
@@ -167,7 +168,7 @@ pub fn transpile_c<'a>(ops: impl Iterator<Item = &'a InterpreterOp>, output_file
                 // Warning: Unsound
                 f.write(
                     format!(
-                        "m[  i - {} + (size_t) m[i - 2] | ((size_t) m[i - 1] << 8)  ] = m[i - 3];\n",
+                        "m[  i - {} + ((size_t) m[i - 2] | ((size_t) m[i - 1] << 8))  ] = m[i - 3];\n",
                         *offset
                     )
                     .as_bytes(),
@@ -184,7 +185,7 @@ pub fn transpile_c<'a>(ops: impl Iterator<Item = &'a InterpreterOp>, output_file
                 // Warning: Unsound
                 f.write(
                     format!(
-                        "m[  i - {} + (size_t) m[i - 4] | ((size_t) m[i - 3] << 8) | ((size_t) m[i - 2] << 16) | ((size_t) m[i - 1] << 24)  ] = m[i - 5];\n",
+                        "m[  i - {} + ((size_t) m[i - 4] | ((size_t) m[i - 3] << 8) | ((size_t) m[i - 2] << 16) | ((size_t) m[i - 1] << 24))  ] = m[i - 5];\n",
                         *offset
                     )
                     .as_bytes(),
@@ -199,7 +200,7 @@ pub fn transpile_c<'a>(ops: impl Iterator<Item = &'a InterpreterOp>, output_file
                 // Warning: Unsound
 
                 f.write(
-                    format!("m[i - 4] = m[  i - {} + (size_t) m[i - 4] | ((size_t) m[i - 3] << 8) | ((size_t) m[i - 2] << 16) | ((size_t) m[i - 1] << 24)  ];\n", *offset)
+                    format!("m[i - 4] = m[  i - {} + ((size_t) m[i - 4] | ((size_t) m[i - 3] << 8) | ((size_t) m[i - 2] << 16) | ((size_t) m[i - 1] << 24))  ];\n", *offset)
                     .as_bytes()
                     )?;
 
@@ -208,6 +209,18 @@ pub fn transpile_c<'a>(ops: impl Iterator<Item = &'a InterpreterOp>, output_file
             InterpreterOp::CompoundOp(CompoundOp::MoveCellsStaticReverse(offset, count)) => {
                 f.write(format!("memmove(&m[i + {}], &m[i - {}], {});\n", *offset - *count as i64 + 1, *count - 1, *count).as_bytes())?;
                 f.write(format!("i -= {};\n", *count).as_bytes())?;
+            }
+            InterpreterOp::CompoundOp(CompoundOp::AddU32) => {
+                f.write(b"{\n")?;
+                    f.write(b"const uint32_t a = (uint32_t) m[i - 8] | (uint32_t) m[i - 7] << 8 | (uint32_t) m[i - 6] << 16 | (uint32_t) m[i - 5] << 24;\n")?;
+                    f.write(b"const uint32_t b = (uint32_t) m[i - 4] | (uint32_t) m[i - 3] << 8 | (uint32_t) m[i - 2] << 16 | (uint32_t) m[i - 1] << 24;\n")?;
+                    f.write(b"const uint32_t result = a + b;\n")?;
+                    f.write(b"m[i - 8] = result & 0xFF;\n")?;
+                    f.write(b"m[i - 7] = (result >> 8) & 0xFF;\n")?;
+                    f.write(b"m[i - 6] = (result >> 16 & 0xFF);\n")?;
+                    f.write(b"m[i - 5] = (result >> 24 & 0xFF);\n")?;
+                f.write(b"}\n")?;
+                f.write(b"i -= 5;\n")?;
             }
         }
     }
